@@ -22,10 +22,21 @@ arya/
   src/arya/
     config.py    # environment-driven settings, loaded once at import time
     tracing.py   # MLflow tracking/experiment setup + OpenAI autolog
-    agent.py     # Agent class: conversation state + one model call per turn
-    main.py      # REPL entrypoint (`uv run arya`)
+    agent.py     # Agent class: conversation state + one-step primitives
+    agent_loop.py # run_turn: compose steps until the model replies
+    main.py      # entrypoint (`uv run arya`, `uv run arya memories ...`)
+    prompts/
+      system.py  # the system prompt, kept out of agent code
+    tools/
+      registry.py # generic tool registry: register/schemas/execute
+      memory.py   # remember/recall tool definitions + handlers
+    memory/
+      store.py    # SQLite + FTS5 storage layer (data only, no tool knowledge)
+  tests/
+    test_memory.py  # store + tool tests (uv run pytest tests/)
   docs/
     architecture.md
+    memory.md
   .env / .env.example
 ```
 
@@ -48,6 +59,11 @@ Settings:
 | `mlflow_tracking_uri` | `MLFLOW_TRACKING_URI` | `sqlite:///mlflow.db`                               |
 | `mlflow_experiment` | `MLFLOW_EXPERIMENT`     | `arya`                                              |
 | `stream_delay_ms`   | `ARYA_STREAM_DELAY_MS`  | `20`                                                |
+
+The memory store path (`ARYA_MEMORY_DB`, default `<repo>/memories.db`) is
+read by `memory/store.py` rather than `Settings`, because the `memories` CLI
+must run without importing `arya.config` (which requires a Fireworks API
+key). It shares the same `.env` loading via `arya/env.py`.
 
 ### `tracing.py` — `init_tracing()`
 
@@ -86,28 +102,36 @@ The `Agent` class holds all per-conversation state:
 - `self.session_id` — a UUID generated once per `Agent` instance, used purely
   for trace grouping (see below).
 
-`step(user_input)` is the only operation the agent supports. It is a
-**generator**, decorated with `@mlflow.trace(..., output_reducer=...)`:
+`step()` is one agent **step**: a single streaming model turn plus tool
+execution if the model requested calls. It is a **generator**, decorated
+with `@mlflow.trace(..., output_reducer=...)`:
 
-1. Tags the current trace with `mlflow.trace.session` so every turn in one
-   conversation shares a session id in MLflow, even though each turn is its
-   own trace (a trace represents one logical execution — a turn — not an
-   open-ended conversation; session metadata is how multiple traces get tied
-   back together in the UI).
-2. Appends the user message to history.
-3. Calls the model with `stream=True` and yields text deltas as they arrive,
-   skipping any chunk with an empty `choices` list (providers, including
-   Fireworks, may send a trailing usage-only chunk with no choices).
-4. Once the stream ends, appends the full assembled reply to history as the
-   `assistant` turn.
+1. Calls the model with `stream=True` and `tools` attached, yielding text
+   deltas as they arrive while accumulating tool-call fragments (keyed by
+   `tool_call.index`), skipping chunks with an empty `choices` list
+   (providers, including Fireworks, may send a trailing usage-only chunk).
+2. If no tool calls were requested: the assembled reply is appended to
+   history as the `assistant` turn (in a `finally` block, so a consumer
+   abandoning the generator still leaves consistent history) and
+   `pending_tool_calls` is `False` — the turn is done.
+3. If tool calls were requested: the calls are executed via the tools
+   registry, the assistant `tool_calls` message
+   (with any streamed preamble as its content) plus one `role=tool` result
+   per id are appended, and `pending_tool_calls` is `True` — the loop must
+   call again.
 
-Because `step` is a generator, there is deliberately **no agent loop** here
-yet. An "agent loop" — call the model, execute a requested tool, feed the
-result back, call the model again, repeat until done — only makes sense once
-the agent has tools to call. Today there is nothing to loop over: one call in,
-one streamed reply out. When tool-calling is added, that request → execute →
-observe → repeat cycle will live either inside `step()` or in a new
-`agent_loop.py`, separate from the outer REPL loop in `main.py`.
+The user message is appended by `run_turn`, not by `step`.
+
+Because `step` is a generator, the outer loop stays simple. The **agent
+loop** lives in `agent_loop.py` (`run_turn`): feed the user turn in, then
+repeatedly `Agent.step()` — one request-execute-observe cycle per step —
+until the model produces a plain reply (no more tool calls), capped at
+`max_iterations` (default 5), after which one final tools-disabled model
+call (`Agent.model_reply()`) forces a reply. Every failure path (malformed
+JSON, unknown tool, tool exception) appends an error tool result via the
+registry so the message history stays valid. Each tool execution gets its
+own `@mlflow.trace` span (`TOOL` type, named after the tool, opened in the
+registry); design details in [`memory.md`](memory.md).
 
 ### `main.py` — REPL entrypoint
 
@@ -115,7 +139,7 @@ The `arya` console script (`uv run arya`). Responsibilities:
 
 - Calls `init_tracing()` once, then constructs one `Agent`.
 - Runs a plain `while True` read-eval-print loop: read a line, `exit`/`quit`
-  to stop, otherwise call `agent.step(...)`.
+  to stop, otherwise call `agent_loop.run_turn(agent, line)`.
 - `print_chunk()` paces the printed output to `stream_delay_ms` per
   character (default `20ms`, in the range of comfortable silent-reading
   speed) so fast models don't dump their whole reply onto the screen in one
@@ -130,34 +154,36 @@ the tool-calling agent loop described above.
 ```
 user types a line
   -> main.py reads it
-  -> agent.step(user_input)
-       -> appends user message to self.messages
-       -> calls Fireworks chat.completions.create(..., stream=True)
-            (mlflow.openai.autolog() wraps this call as a CHAT_MODEL span)
-       -> yields each text delta
-            (outer @mlflow.trace call wraps the whole generator as an
-             AGENT span named "agent_step", tagged with the session id)
-       -> appends full assistant reply to self.messages
+  -> agent_loop.run_turn(agent, user_input)
+       -> appends user message to agent.messages
+       -> Agent.step()   [one per iteration, up to max_iterations]
+            -> calls Fireworks chat.completions.create(..., stream=True)
+                 (mlflow.openai.autolog() wraps this call as a CHAT_MODEL span)
+            -> yields each text delta as it arrives
+            -> if tool calls requested:
+                 -> registry executes each call (TOOL span per tool)
+                 -> appends assistant tool_calls message + tool results
+                 -> loop calls step() again
+       -> if the iteration cap is hit: agent.model_reply() (no tools)
   -> main.py prints each yielded chunk, paced by stream_delay_ms
   -> loop back to read the next line
 ```
 
-Every turn produces one MLflow trace with two spans: the `agent_step` (AGENT)
-root and the nested `Completions` (CHAT_MODEL) span from autolog. All traces
-from one `arya` process share the same `mlflow.trace.session` value.
+Every turn produces one MLflow trace: the `agent_turn` (AGENT) root, nested
+`agent_step` (AGENT) spans per step, per-tool `TOOL` spans, and the
+`Completions` (CHAT_MODEL) spans from autolog. All traces from one `arya`
+process share the same `mlflow.trace.session` value.
 
 ## What's explicitly not here yet
 
-- **No tools.** The agent can only talk; it cannot call functions, search,
-  read files, or touch a calendar/email/notes — the actual "life assistant"
-  capabilities.
-- **No agent loop.** Follows directly from having no tools — see `agent.py`
-  above.
-- **No persistent memory.** Conversation history lives only in
-  `Agent.messages`, in process memory. Nothing survives a restart; there's no
-  memory store across sessions yet.
-- **No eval harness.** The `eval/` directory exists at the repo root but is
-  currently empty.
+- **Memory beyond explicit tools.** Persistent memory exists
+  ([`memory.md`](memory.md)) — the agent can `remember`/`recall` via
+  tool calls — but there is no offline reflection/dreaming pass, no
+  automatic per-turn memory injection, and no embeddings.
+- **No further tools.** Memory is the only tool surface; the agent cannot
+  touch a calendar/email/notes yet.
+- **No eval harness.** `tests/` holds store-level tests
+  (`tests/test_memory.py`), but there is no model-behavior eval harness.
 - **No multi-provider abstraction.** Model access is Fireworks-specific
   (albeit via the generic OpenAI client interface), not behind a
   provider-agnostic layer.

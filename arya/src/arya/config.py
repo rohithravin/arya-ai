@@ -1,8 +1,6 @@
 import os
 
-from dotenv import load_dotenv
-
-load_dotenv(override=True)
+from arya import env  # noqa: F401  (loads .env before settings are read)
 
 
 class Settings:
