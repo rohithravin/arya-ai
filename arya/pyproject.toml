@@ -1,0 +1,21 @@
+[project]
+name = "arya"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Rohith Ravindranath", email = "rohithravin@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "mlflow>=3.17.1",
+    "openai>=3.35.1",
+    "python-dotenv>=1.2.4",
+]
+
+[project.scripts]
+arya = "arya.main:main"
+
+[build-system]
+requires = ["uv_build>=0.11.29,<0.12.0"]
+build-backend = "uv_build"
