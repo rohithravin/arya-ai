@@ -50,5 +50,22 @@ and takes precedence over the same variable already set in your shell).
 | `MLFLOW_TRACKING_URI`  | `sqlite:///mlflow.db`                               | MLflow tracking store                        |
 | `MLFLOW_EXPERIMENT`    | `arya`                                              | MLflow experiment name                       |
 | `ARYA_STREAM_DELAY_MS` | `20`                                                 | Per-character print delay for streamed replies; `0` disables pacing |
+| `ARYA_MEMORY_DB`       | `<repo>/memories.db`                                | SQLite file for the persistent memory store  |
 
 See [`.env.example`](.env.example) for a template.
+
+## Memory
+
+Arya has a persistent memory store (SQLite + FTS5, see
+[`docs/memory.md`](docs/memory.md)). The agent saves and searches memories
+via `remember`/`recall` tool calls during conversations. Inspect and correct
+the store directly:
+
+```bash
+uv run arya memories list [--category fact|preference|person|goal]
+uv run arya memories show <id>     # row + supersession chain
+uv run arya memories delete <id> [--force]
+uv run arya memories edit <id> --content "..."
+```
+
+The `memories` commands are purely local — no API key or MLflow required.
