@@ -70,9 +70,36 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+# Function/question words that carry no retrieval signal. Tokens under 3
+# chars are dropped too (also almost all stopwords) — otherwise "when is
+# my sister's birthday" AND-matches every row containing "is", and the
+# OR fallback would admit nearly the whole store.
+STOPWORDS = frozenset(
+    """the and for that this with about when what where who whom whose why how
+    does did was were are you your from have has had not but all any can
+    will would should there their""".split()
+)
+
+
+def _contentful_tokens(text: str) -> list[str]:
+    return [
+        t
+        for t in re.findall(r"\w+", text)
+        if len(t) >= 3 and t.lower() not in STOPWORDS
+    ]
+
+
 def _fts_query(text: str) -> str | None:
-    """Turn free text into a safe FTS5 MATCH query (quoted tokens, OR-joined)."""
-    tokens = re.findall(r"\w+", text)
+    """Tight FTS5 MATCH form: contentful tokens, AND-joined."""
+    tokens = _contentful_tokens(text)
+    if not tokens:
+        return None
+    return " ".join(f'"{token}"' for token in tokens)
+
+
+def _fts_query_loose(text: str) -> str | None:
+    """Loose form: the same contentful tokens, OR-joined."""
+    tokens = _contentful_tokens(text)
     if not tokens:
         return None
     return " OR ".join(f'"{token}"' for token in tokens)
@@ -135,6 +162,9 @@ def recall(conn: sqlite3.Connection, query: str) -> list[dict] | dict:
     if match is None:
         return []
     try:
+        # AND-joined tokens first (precision); fall back to the looser
+        # OR-joined match so a single unmatched token doesn't hide the
+        # rest of the query's results (recall).
         rows = conn.execute(
             "SELECT m.id, m.content, m.category, m.created_at, m.updated_at"
             " FROM memories_fts JOIN memories m ON m.id = memories_fts.rowid"
@@ -142,6 +172,16 @@ def recall(conn: sqlite3.Connection, query: str) -> list[dict] | dict:
             " ORDER BY memories_fts.rank LIMIT ?",
             (match, RECALL_LIMIT),
         ).fetchall()
+        if not rows:
+            loose = _fts_query_loose(query)
+            if loose and loose != match:
+                rows = conn.execute(
+                    "SELECT m.id, m.content, m.category, m.created_at, m.updated_at"
+                    " FROM memories_fts JOIN memories m ON m.id = memories_fts.rowid"
+                    " WHERE memories_fts MATCH ? AND m.active = 1"
+                    " ORDER BY memories_fts.rank LIMIT ?",
+                    (loose, RECALL_LIMIT),
+                ).fetchall()
     except sqlite3.OperationalError as exc:
         return {"error": f"memory index unavailable: {exc}"}
     return [
