@@ -1,0 +1,7 @@
+[judge]
+judge = "fireworks_ai/accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b"
+files = ["/workdir/reply.txt"]
+
+[[criterion]]
+description = "Does the assistant explicitly acknowledge remembering all three birthdays — Priya's on June 12, Arjun's on March 3, and the dad's on November 8? Acknowledging only some of them does not count."
+type = "binary"

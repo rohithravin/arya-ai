@@ -1,0 +1,24 @@
+schema_version = "1.3"
+
+[task]
+name = "arya/memory-atomicity"
+authors = [{ name = "Rohith Ravindranath", email = "rohithravin@gmail.com" }]
+description = "Arya saves several entangled facts as atomic, one-fact-per-row memories."
+
+[metadata]
+difficulty_explanation = "Single conversational turn with three entangled facts; verifies three separate active rows, one fact each, no blob row."
+category = "memory"
+
+[agent]
+timeout_sec = 300.0
+
+[verifier]
+timeout_sec = 300.0
+
+[verifier.env]
+FIREWORKS_API_KEY = "${FIREWORKS_API_KEY}"
+
+[environment]
+network_mode = "allowlist"
+allowed_hosts = ["api.fireworks.ai", "pypi.org", "files.pythonhosted.org"]
+workdir = "/workdir"

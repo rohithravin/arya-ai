@@ -25,7 +25,7 @@ export FIREWORKS_API_KEY=...    # passed into the sandbox by the adapter
 ```bash
 cd eval
 PYTHONPATH=agent uv tool run harbor run \
-    --path tasks/memory_save \
+    --path benchmarks/memory_bench/memory_save \
     --agent arya_harbor:AryaAgent
 ```
 
@@ -50,7 +50,8 @@ ARYA_MEMORY_DB=/tmp/memories.db ARYA_REPLY_PATH=/tmp/reply.txt \
   the memory store is isolated per trial and inspectable by the verifier.
 - `agent/driver.py` — runs inside the sandbox: one `run_turn` on the task
   instruction; writes the reply to `/workdir/reply.txt`.
-- `tasks/<name>/` — Harbor task directories:
+- `benchmarks/<bench>/<name>/` — Harbor task directories, grouped into
+  benchmarks (e.g. `benchmarks/memory_bench/memory_save/`):
   - `instruction.md` — the conversational input
   - `environment/Dockerfile` — installs the arya package at a pinned commit
   - `tests/test.sh` — verifier; queries `/workdir/memories.db` and writes
@@ -66,22 +67,41 @@ ARYA_MEMORY_DB=/tmp/memories.db ARYA_REPLY_PATH=/tmp/reply.txt \
 | `/workdir/memories.db` | the trial's memory store              |
 | `/workdir/reply.txt`   | the agent's final reply text          |
 
-## Tasks
+## Benchmarks and tasks
 
-| Task           | Instruction                               | Verifier checks                          |
-|----------------|-------------------------------------------|------------------------------------------|
-| `memory_save`  | "Remember that my sister Priya's birthday is June 12." | active row containing Priya + June 12 |
+Tasks live under `benchmarks/<bench>/<name>/`. Each benchmark has its own
+`benchmarks/<bench>/README.md` describing what that benchmark tests and
+listing its tasks:
+
+- [`benchmarks/memory_bench/`](benchmarks/memory_bench/) — whether the
+  right facts get saved (atomically, in the right category), recalled
+  (the right row, respecting supersession), corrected (via supersession),
+  and withheld (transient chatter not saved, unknown facts admitted).
 
 Testing a task without the agent (uses the reference solution):
 
 ```bash
 cd eval
-uv tool run harbor tasks test tasks/memory_save --solution
+uv tool run harbor tasks test benchmarks/memory_bench/memory_save --solution
+```
+
+## Run the agent on all tasks
+
+`scripts/run_agent.py` runs the Arya agent (the local code) on every task —
+or a filtered subset — N attempts each, reporting per-trial rewards and a
+per-task mean (rewards are a report, not pass/fail; see "Verifier sanity"
+below for the pass/fail check):
+
+```bash
+cd eval
+uv run python scripts/run_agent.py                          # all tasks, 3 attempts each
+uv run python scripts/run_agent.py 5 memory_bench           # one benchmark
+uv run python scripts/run_agent.py 5 memory_bench/memory_save   # one task
 ```
 
 ## Verifier sanity (oracle=1.0, nop=0.0)
 
-`scripts/verify_tasks.py` runs every task under `tasks/` with the **oracle**
+`scripts/verify_tasks.py` runs every selected task with the **oracle**
 (the task's reference solution — must score reward 1.0 on every attempt)
 and **nop** (does nothing — must score 0.0), N attempts each (default 5).
 This validates the verifiers themselves, judges included, and is what the
@@ -89,10 +109,9 @@ This validates the verifiers themselves, judges included, and is what the
 
 ```bash
 cd eval
-uv run python scripts/verify_tasks.py 5
+uv run python scripts/verify_tasks.py                           # all tasks, 5 attempts each
+uv run python scripts/verify_tasks.py 5 memory_bench            # one benchmark
+uv run python scripts/verify_tasks.py 5 memory_bench/memory_save    # one task
 ```
 
-Adding a task: drop the directory under `tasks/` with a `task.toml`, an
-`instruction.md`, a `solution/solve.sh` that satisfies **every** verifier
-dimension (the oracle must be able to score 1.0), and verifier criteria
-that nop cannot pass. The sanity script picks it up automatically.
+Adding a task: see the benchmark's README under `benchmarks/<bench>/`.

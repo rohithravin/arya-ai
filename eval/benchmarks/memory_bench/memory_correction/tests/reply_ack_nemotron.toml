@@ -1,0 +1,7 @@
+[judge]
+judge = "fireworks_ai/accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b"
+files = ["/workdir/reply.txt"]
+
+[[criterion]]
+description = "Does the assistant acknowledge the correction and confirm that Priya's birthday is June 15? A reply that restates June 12, does not acknowledge the mistake was corrected, or claims not to have the information does not count."
+type = "binary"
