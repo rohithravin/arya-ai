@@ -1,0 +1,7 @@
+[judge]
+judge = "fireworks_ai/accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b"
+files = ["/workdir/reply.txt"]
+
+[[criterion]]
+description = "Does the assistant explicitly acknowledge that it has saved or will remember the stated fact (e.g. 'saved', 'noted', 'I'll remember that')? A generic reply with no reference to remembering or saving does not count."
+type = "binary"
