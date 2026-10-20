@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+mlflow.db
+mlruns/
+memories.db
+memories.db-wal
+memories.db-shm
+jobs/

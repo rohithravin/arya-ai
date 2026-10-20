@@ -45,6 +45,9 @@ class Agent:
         # Set by step(): True when tool results are pending and the model
         # must be called again before the turn is complete.
         self.pending_tool_calls: bool = False
+        # One entry per completed model call (in order): token usage from
+        # the final streamed chunk, via stream_options={"include_usage": True}.
+        self.usage_log: list[dict] = []
 
     @mlflow.trace(
         name="agent_step",
@@ -69,9 +72,15 @@ class Agent:
             messages=self.messages,
             stream=True,
             tools=schemas(),
+            stream_options={"include_usage": True},
         )
+        usage = None
         try:
             for chunk in stream:
+                if chunk.usage:
+                    # Usage arrives on a trailing chunk with empty choices.
+                    usage = chunk.usage
+                    continue
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta
@@ -89,6 +98,7 @@ class Agent:
                     call = calls.setdefault(fragment.index, ToolCall(fragment.index))
                     call.add_delta(fragment)
         finally:
+            self.usage_log.append(self._usage_dict(usage))
             span = mlflow.get_current_active_span()
             if span:
                 attrs = {}
@@ -96,6 +106,8 @@ class Agent:
                     attrs["reasoning_content"] = "".join(reasoning_parts)
                 if finish_reason:
                     attrs["finish_reason"] = finish_reason
+                if usage is not None:
+                    attrs.update(self._usage_dict(usage))
                 if attrs:
                     span.set_attributes(attrs)
             # Appended in finally so a consumer abandoning the generator
@@ -116,13 +128,18 @@ class Agent:
         """One streaming model call with no tools attached — the forced
         fallback when the loop hits its iteration cap."""
         reply = _ReplyBuffer(self.messages)
+        usage = None
         stream = self.client.chat.completions.create(
             model=settings.model,
             messages=self.messages,
             stream=True,
+            stream_options={"include_usage": True},
         )
         try:
             for chunk in stream:
+                if chunk.usage:
+                    usage = chunk.usage
+                    continue
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta.content
@@ -130,8 +147,23 @@ class Agent:
                     yield delta
                     reply.append(delta)
         finally:
+            self.usage_log.append(self._usage_dict(usage))
             reply.commit_assistant()
             self.pending_tool_calls = False
+
+    @staticmethod
+    def _usage_dict(usage) -> dict:
+        if usage is None:
+            return {}
+        d = usage.model_dump() if hasattr(usage, "model_dump") else {}
+        details = d.get("completion_tokens_details") or {}
+        prompt_details = d.get("prompt_tokens_details") or {}
+        return {
+            "prompt_tokens": d.get("prompt_tokens"),
+            "completion_tokens": d.get("completion_tokens"),
+            "cached_tokens": prompt_details.get("cached_tokens"),
+            "reasoning_tokens": details.get("reasoning_tokens"),
+        }
 
     def _execute_tool_calls(self, calls: list[ToolCall], preamble: str) -> list[str]:
         """Execute each requested call and append the assistant tool_calls
