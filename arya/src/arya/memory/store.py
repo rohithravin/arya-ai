@@ -127,7 +127,10 @@ def remember(conn: sqlite3.Connection, content: str, category: str,
     return result
 
 
-def recall(conn: sqlite3.Connection, query: str) -> list[dict]:
+def recall(conn: sqlite3.Connection, query: str) -> list[dict] | dict:
+    """Search active memories. Returns a list of matches, or {"error": ...}
+    if the index is unusable — an empty store and a broken index must not
+    look identical to the caller."""
     match = _fts_query(query)
     if match is None:
         return []
@@ -139,8 +142,8 @@ def recall(conn: sqlite3.Connection, query: str) -> list[dict]:
             " ORDER BY memories_fts.rank LIMIT ?",
             (match, RECALL_LIMIT),
         ).fetchall()
-    except sqlite3.OperationalError:
-        return []
+    except sqlite3.OperationalError as exc:
+        return {"error": f"memory index unavailable: {exc}"}
     return [
         {
             "id": row[0],
