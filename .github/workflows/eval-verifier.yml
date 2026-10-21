@@ -5,15 +5,11 @@ name: eval verifier sanity
 # 5 attempts each. This validates the tasks/verifiers themselves —
 # judge-based criteria included (the judges run against the reference
 # reply artifact, so this also exercises the judge plumbing).
-# Runs only when task definitions change; adapter/driver changes alone
-# don't affect what the oracle or nop can score.
+# Runs on every PR.
 
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - "eval/tasks/**"
-      - ".github/workflows/eval-verifier.yml"
   push:
     branches: [main]
 

@@ -11,12 +11,29 @@ def _remember(args: dict) -> object:
     conn = store._connect()
     try:
         store._init_schema(conn)
-        return store.remember(
+        result = store.remember(
             conn,
             content=str(args.get("content", "")),
             category=str(args.get("category", "")),
             supersedes=supersedes,
         )
+        # The new row is committed even when supersession failed, so the
+        # store now holds two active facts. Give the model what it needs to
+        # close the loop: the ids still active on this topic, one of which
+        # it can retry against.
+        if "supersession_failed" in result:
+            matches = store.recall(conn, result["saved"])
+            if isinstance(matches, list):
+                result["active_memories_matching"] = [
+                    {"id": m["id"], "content": m["content"]}
+                    for m in matches
+                    if m["id"] != result["id"]
+                ]
+            result["hint"] = (
+                "the outdated memory is still active; retry remember with"
+                " supersedes set to the matching memory's id"
+            )
+        return result
     finally:
         conn.close()
 

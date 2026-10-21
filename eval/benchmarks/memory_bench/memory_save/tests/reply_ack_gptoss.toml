@@ -1,0 +1,7 @@
+[judge]
+judge = "fireworks_ai/accounts/fireworks/models/gpt-oss-120b"
+files = ["/workdir/reply.txt"]
+
+[[criterion]]
+description = "The file contains the assistant's reply. Does the reply clearly acknowledge the user's request to remember their sister Priya's birthday (June 12) in a way that indicates it has been or will be remembered, rather than merely repeating it or ignoring the request? Do not judge the phrasing style — natural wording in the assistant's own voice counts."
+type = "binary"

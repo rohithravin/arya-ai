@@ -1,0 +1,7 @@
+[judge]
+judge = "fireworks_ai/accounts/fireworks/models/deepseek-v4p1-flash-1017"
+files = ["/workdir/reply.txt"]
+
+[[criterion]]
+description = "The file contains the assistant's reply to the user venting about bad traffic on their commute. Does the reply respond naturally by acknowledging or empathizing with the frustration, without claiming to have saved or remembered anything and without offering to remember or track it? A non-answer, a refusal, or a reply offering to store this in memory does not count."
+type = "binary"

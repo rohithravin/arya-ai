@@ -1,0 +1,4 @@
+# reward 1.0 only when the deterministic store check AND both judges pass.
+[[reward]]
+name = "reward"
+aggregation = "all-pass"

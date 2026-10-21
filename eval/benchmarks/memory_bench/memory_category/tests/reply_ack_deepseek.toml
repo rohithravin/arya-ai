@@ -1,0 +1,7 @@
+[judge]
+judge = "fireworks_ai/accounts/fireworks/models/deepseek-v4p1-flash-1017"
+files = ["/workdir/reply.txt"]
+
+[[criterion]]
+description = "The file contains the assistant's reply. Does the reply clearly acknowledge the user's two requests (the tea-over-coffee preference and the October marathon goal) in a way that indicates both have been or will be remembered, rather than only one of them or ignoring the request? Do not judge the phrasing style — natural wording in the assistant's own voice counts."
+type = "binary"

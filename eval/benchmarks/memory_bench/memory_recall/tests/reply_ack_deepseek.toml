@@ -1,0 +1,7 @@
+[judge]
+judge = "fireworks_ai/accounts/fireworks/models/deepseek-v4p1-flash-1017"
+files = ["/workdir/reply.txt"]
+
+[[criterion]]
+description = "The file contains the assistant's reply. Does the reply answer the user's question by stating that their sister Priya's birthday is on June 12? A reply that gives a different date, hedges without answering, or claims not to know does not count."
+type = "binary"

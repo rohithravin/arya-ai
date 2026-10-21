@@ -1,0 +1,24 @@
+schema_version = "1.3"
+
+[task]
+name = "arya/memory-no-save"
+authors = [{ name = "Rohith Ravindranath", email = "rohithravin@gmail.com" }]
+description = "Arya does not save transient chatter to memory."
+
+[metadata]
+difficulty_explanation = "Single conversational turn; verifies no active memory rows are written for non-durable input."
+category = "memory"
+
+[agent]
+timeout_sec = 300.0
+
+[verifier]
+timeout_sec = 300.0
+
+[verifier.env]
+FIREWORKS_API_KEY = "${FIREWORKS_API_KEY}"
+
+[environment]
+network_mode = "allowlist"
+allowed_hosts = ["api.fireworks.ai", "pypi.org", "files.pythonhosted.org"]
+workdir = "/workdir"
