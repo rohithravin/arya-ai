@@ -6,6 +6,10 @@ Unlike scripts/verify_tasks.py (oracle + nop, validating the verifiers),
 this measures the agent itself: N attempts per task, reporting per-trial
 rewards and a per-task mean.
 
+Each sweep is imported into MLflow as traces (experiment
+arya-eval/<timestamp>, one session per trial) — set ARYA_EVAL_MLFLOW=0
+to skip the import, ARYA_EVAL_EXPERIMENT to name the experiment.
+
 Task selection (positional args, default: all tasks in all benchmarks):
     memory_bench                 every task in that benchmark
     memory_bench/memory_save     one specific task
@@ -22,6 +26,9 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from mlflow_import import begin_run as mlflow_begin_run, enabled as mlflow_enabled, log_trial
 
 ROOT = Path(__file__).resolve().parents[1]
 BENCHMARKS_DIR = ROOT / "benchmarks"
@@ -95,6 +102,8 @@ def main() -> int:
     if not tasks:
         raise SystemExit(f"no tasks found under {BENCHMARKS_DIR}")
     print(f"{len(tasks)} task(s), {attempts} attempt(s) each, agent {AGENT}\n")
+    if mlflow_enabled():
+        print(f"MLflow import: on (experiment {mlflow_begin_run()})\n")
 
     ok = True
     for task in tasks:
@@ -114,6 +123,8 @@ def main() -> int:
                 ok = False
                 continue
             print(f"pass {name}/{trial.parent.name}: reward {reward}")
+            # Opt-in (ARYA_EVAL_MLFLOW=1): the trial becomes an MLflow trace.
+            log_trial(trial.parent, name, reward)
             rewards.append(reward)
         if len(rewards) != attempts:
             print(f"FAIL {name}: {len(rewards)} scored trials,"

@@ -99,6 +99,12 @@ uv run python scripts/run_agent.py 5 memory_bench           # one benchmark
 uv run python scripts/run_agent.py 5 memory_bench/memory_save   # one task
 ```
 
+Every sweep is imported into MLflow as traces: one experiment per run
+(`arya-eval/<timestamp>`, name it via `ARYA_EVAL_EXPERIMENT`), one session
+per trial, each trace carrying task/trial/reward tags. View with
+`uv run mlflow ui --backend-store-uri sqlite:///mlflow.db` (same store as
+Arya itself). Set `ARYA_EVAL_MLFLOW=0` to skip the import.
+
 ## Verifier sanity (oracle=1.0, nop=0.0)
 
 `scripts/verify_tasks.py` runs every selected task with the **oracle**

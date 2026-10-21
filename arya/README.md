@@ -29,7 +29,7 @@ leave.
 In a separate terminal, from this directory:
 
 ```bash
-uv run mlflow ui --backend-store-uri sqlite:///mlflow.db
+uv run mlflow ui --backend-store-uri sqlite:///<repo>/mlflow.db   # shared repo-root store
 ```
 
 Open `http://127.0.0.1:5000` and select the `arya` experiment. Each turn is
@@ -47,7 +47,7 @@ and takes precedence over the same variable already set in your shell).
 | `FIREWORKS_API_KEY`    | *(required)*                                        | Fireworks API key                            |
 | `FIREWORKS_BASE_URL`   | `https://api.fireworks.ai/inference/v1`             | Fireworks OpenAI-compatible endpoint         |
 | `ARYA_MODEL`           | `accounts/fireworks/models/glm-5p3-flash`           | Model to call                                |
-| `MLFLOW_TRACKING_URI`  | `sqlite:///mlflow.db`                               | MLflow tracking store                        |
+| `MLFLOW_TRACKING_URI`  | `sqlite:///<repo>/mlflow.db` (repo root)            | MLflow tracking store (shared with the eval harness) |
 | `MLFLOW_EXPERIMENT`    | `arya`                                              | MLflow experiment name                       |
 | `ARYA_STREAM_DELAY_MS` | `20`                                                 | Per-character print delay for streamed replies; `0` disables pacing |
 | `ARYA_MEMORY_DB`       | `<repo>/memories.db`                                | SQLite file for the persistent memory store  |

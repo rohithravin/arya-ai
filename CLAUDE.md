@@ -18,7 +18,7 @@ cp .env.example .env            # set FIREWORKS_API_KEY
 uv run arya                     # REPL agent
 uv run pytest tests/            # tests
 uv run pytest tests/test_memory.py -k <name>   # single test
-uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # traces at :5000
+uv run mlflow ui --backend-store-uri sqlite:///<repo>/mlflow.db   # traces at :5000 (shared repo-root store)
 ```
 
 - `arya memories list|show|delete|edit` — local memory-store inspection commands; no API key or MLflow needed.
