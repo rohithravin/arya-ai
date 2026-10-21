@@ -1,7 +1,0 @@
-[judge]
-judge = "fireworks_ai/accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b"
-files = ["/workdir/reply.txt"]
-
-[[criterion]]
-description = "Does the assistant explicitly acknowledge remembering both stated facts — the tea-over-coffee preference and the October marathon goal? Acknowledging only one of them does not count."
-type = "binary"

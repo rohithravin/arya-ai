@@ -3,5 +3,5 @@ judge = "fireworks_ai/accounts/fireworks/models/gpt-oss-120b"
 files = ["/workdir/reply.txt"]
 
 [[criterion]]
-description = "Does the assistant answer the question by stating that the user's sister Priya's birthday is on June 12? A reply that gives a different date, hedges without answering, or claims not to know does not count."
+description = "The file contains the assistant's reply. Does the reply answer the user's question by stating that their sister Priya's birthday is on June 12? A reply that gives a different date, hedges without answering, or claims not to know does not count."
 type = "binary"

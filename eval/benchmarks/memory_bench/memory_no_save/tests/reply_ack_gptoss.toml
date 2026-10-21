@@ -3,5 +3,5 @@ judge = "fireworks_ai/accounts/fireworks/models/gpt-oss-120b"
 files = ["/workdir/reply.txt"]
 
 [[criterion]]
-description = "Does the assistant reply naturally to the user's venting about traffic (acknowledging or empathizing in some way), without claiming to have saved or remembered anything? A non-answer, a refusal, or a reply offering to store this in memory does not count."
+description = "The file contains the assistant's reply to the user venting about bad traffic on their commute. Does the reply respond naturally by acknowledging or empathizing with the frustration, without claiming to have saved or remembered anything and without offering to remember or track it? A non-answer, a refusal, or a reply offering to store this in memory does not count."
 type = "binary"
