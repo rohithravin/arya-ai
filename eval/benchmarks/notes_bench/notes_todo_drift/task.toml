@@ -1,0 +1,21 @@
+schema_version = "1.3"
+
+[task]
+name = "arya/notes-todo-drift"
+authors = [{ name = "Rohith Ravindranath", email = "rohithravin@gmail.com" }]
+description = "Arya adds and toggles todo items without rewriting or false-completing the rest of the list."
+
+[metadata]
+difficulty_explanation = "Single turn on a seeded near-duplicate todo list; verifies byte-exact survival of untouched items."
+category = "notes"
+
+[agent]
+timeout_sec = 600.0
+
+[verifier]
+timeout_sec = 300.0
+
+[environment]
+network_mode = "allowlist"
+allowed_hosts = ["api.fireworks.ai", "pypi.org", "files.pythonhosted.org"]
+workdir = "/workdir"

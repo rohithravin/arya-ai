@@ -1,0 +1,5 @@
+# reward 1.0 only when the new item landed, the right item was toggled,
+# and every untouched item survived byte-exact (no whole-list rewrite).
+[[reward]]
+name = "reward"
+aggregation = "all-pass"

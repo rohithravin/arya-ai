@@ -1,0 +1,21 @@
+schema_version = "1.3"
+
+[task]
+name = "arya/notes-routing-fact"
+authors = [{ name = "Rohith Ravindranath", email = "rohithravin@gmail.com" }]
+description = "Arya routes a personal preference to memory, not notes, when asked to remember it."
+
+[metadata]
+difficulty_explanation = "Single turn; verifies the memory row exists and the notes vault stayed empty."
+category = "notes"
+
+[agent]
+timeout_sec = 600.0
+
+[verifier]
+timeout_sec = 300.0
+
+[environment]
+network_mode = "allowlist"
+allowed_hosts = ["api.fireworks.ai", "pypi.org", "files.pythonhosted.org"]
+workdir = "/workdir"

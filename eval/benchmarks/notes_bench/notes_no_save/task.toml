@@ -1,0 +1,21 @@
+schema_version = "1.3"
+
+[task]
+name = "arya/notes-no-save"
+authors = [{ name = "Rohith Ravindranath", email = "rohithravin@gmail.com" }]
+description = "Arya answers a trivial question without saving any note or memory from transient venting."
+
+[metadata]
+difficulty_explanation = "Single turn; verifies both stores stayed empty and the question was answered."
+category = "notes"
+
+[agent]
+timeout_sec = 600.0
+
+[verifier]
+timeout_sec = 300.0
+
+[environment]
+network_mode = "allowlist"
+allowed_hosts = ["api.fireworks.ai", "pypi.org", "files.pythonhosted.org"]
+workdir = "/workdir"

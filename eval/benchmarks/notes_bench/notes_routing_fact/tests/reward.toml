@@ -1,0 +1,5 @@
+# reward 1.0 only when the preference became a memory row AND the notes
+# vault stayed empty (the inverse routing direction of notes_cross_session).
+[[reward]]
+name = "reward"
+aggregation = "all-pass"

@@ -1,0 +1,21 @@
+schema_version = "1.3"
+
+[task]
+name = "arya/notes-cross-session"
+authors = [{ name = "Rohith Ravindranath", email = "rohithravin@gmail.com" }]
+description = "Arya saves a note in one session and answers from it in a fresh session."
+
+[metadata]
+difficulty_explanation = "Two sessions: save, then recall across a fresh context. Verifies the note on disk and the session-2 reply."
+category = "notes"
+
+[agent]
+timeout_sec = 600.0
+
+[verifier]
+timeout_sec = 300.0
+
+[environment]
+network_mode = "allowlist"
+allowed_hosts = ["api.fireworks.ai", "pypi.org", "files.pythonhosted.org"]
+workdir = "/workdir"
