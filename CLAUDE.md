@@ -18,7 +18,7 @@ cp .env.example .env            # set FIREWORKS_API_KEY
 uv run arya                     # REPL agent
 uv run pytest tests/            # tests
 uv run pytest tests/test_memory.py -k <name>   # single test
-uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # traces at :5000
+uv run mlflow ui --backend-store-uri sqlite:///<repo>/mlflow.db   # traces at :5000 (shared repo-root store)
 ```
 
 - `arya memories list|show|delete|edit` — local memory-store inspection commands; no API key or MLflow needed.
@@ -32,14 +32,14 @@ uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # traces at :5000
 cd eval
 uv sync
 uv tool install harbor
-export FIREWORKS_API_KEY=...
+export FIREWORKS_API_KEY=...    # optional for scripts/ (arya/.env wins); bare `harbor run` verifiers need it
 
 # Run the agent against a Harbor task (adapter imported by module path from agent/)
 PYTHONPATH=agent uv tool run harbor run --path benchmarks/memory_bench/memory_save --agent arya_harbor:AryaAgent
 
 # Drive the agent directly, no Harbor
 ARYA_INSTRUCTION="..." ARYA_MEMORY_DB=/tmp/memories.db ARYA_REPLY_PATH=/tmp/reply.txt \
-    uv run python agent/driver.py
+    ARYA_CONVERSATION_PATH=/tmp/conversation.json uv run python agent/driver.py
 
 # Run the agent on all tasks (or a benchmark, or one task)
 uv run python scripts/run_agent.py
@@ -52,6 +52,6 @@ uv run python scripts/verify_tasks.py 5
 uv tool run harbor tasks test benchmarks/memory_bench/memory_save --solution
 ```
 
-- `agent/arya_harbor.py` — Harbor `BaseAgent` adapter; runs on the host and drives the sandbox via `environment.exec`. Arya itself executes **inside the trial container** via `agent/driver.py`, with `arya/src` uploaded to `/opt/arya-src` (PYTHONPATH) so trials evaluate the exact local code — no commit pinning.
+- `agent/arya_harbor.py` — Harbor `BaseAgent` adapter; runs on the host and drives the sandbox via `environment.exec`. `arya/.env` is not uploaded, so the adapter resolves `FIREWORKS_API_KEY` on the host (`arya/.env` first, then the shell) and passes it in. Arya itself executes **inside the trial container** via `agent/driver.py`, with `arya/src` uploaded to `/opt/arya-src` (PYTHONPATH) so trials evaluate the exact local code — no commit pinning.
 - Sandbox conventions: `/workdir/memories.db` (trial's memory store), `/workdir/reply.txt` (final reply), `/logs/verifier/reward.txt` (numeric reward written by `benchmarks/<bench>/<name>/tests/test.sh`).
 - Tasks live in `benchmarks/<bench>/<name>/` with `task.toml`, `instruction.md`, a `solution/solve.sh` that satisfies **every** verifier dimension, and criteria a nop cannot pass. Both `scripts/verify_tasks.py` (oracle/nop sanity) and `scripts/run_agent.py` (agent scoring) select tasks by benchmark (`memory_bench`) or task path (`memory_bench/memory_save`); the `eval-verifier.yml` workflow runs the sanity script on every PR.
