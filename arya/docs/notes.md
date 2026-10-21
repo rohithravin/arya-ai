@@ -321,18 +321,21 @@ than 30 days are pruned at store-init time (cheap, bounded, invisible).
 ## Evaluation
 
 `eval/benchmarks/notes_bench/<task>/`, same conventions as
-`memory_bench`. The adapter must pass `ARYA_NOTES_DIR=/workdir/notes`
-(today it passes only `ARYA_MEMORY_DB`), `eval/README.md`'s
-"toolset unchanged" claim must be updated, and `memory_bench` scores
-must be re-baselined — every trial's toolset changes when notes tools
-register. Verifier greps exclude `.trash/` (a correct replace puts the
-stale text there) and check memory by `COUNT(*) WHERE active=1`, not
-file existence (read-only turns legitimately create the DB).
+`memory_bench`. The adapter passes `ARYA_NOTES_DIR=/workdir/notes`
+alongside `ARYA_MEMORY_DB`, and `memory_bench` scores must be
+re-baselined — every trial's toolset changes when notes tools register.
+Verifier greps exclude `.trash/` (a correct replace puts the stale text
+there) and check memory by `COUNT(*) WHERE active=1` or a negative
+grep, not file existence (read-only turns legitimately create the DB).
 
-The driver needs one small change: multi-session tasks (a list of
-instructions, each run with a fresh `Agent` against the same
-`/workdir`) — the core value of this store is cross-session, and no
-current task shape can test it. Tasks:
+Multi-session tasks ship today: a task's `instruction.md` separates
+per-session instructions with a `--- SESSION BREAK ---` line; the
+adapter's `split_sessions` splits on it (anchored, whole-line only —
+malformed shapes raise rather than silently renumber) and the driver
+runs each session against a fresh `Agent` sharing the trial's stores
+(`ARYA_INSTRUCTIONS` JSON array; `replies/session-<n>.txt` and
+`sessions.json` carry the per-session artifacts). Built so far, with
+oracle=1.0/nop=0.0 verified and the live agent passing:
 
 - **Save**: oracle appends/creates; verifier greps the file. Nop fails.
 - **Recall** (distractor-rich fixture): reply cites the *right* note's
@@ -341,9 +344,18 @@ current task shape can test it. Tasks:
   writes memory (`COUNT active=1` = 1), notes untouched;
   `routing_note` — "save this recipe" writes the note, memory rows
   unchanged.
-- **Cross-session**: session 1 saves a decision; session 2 (fresh
-  process) answers a question about it. This is the store's reason to
-  exist; it gets its own task.
+- **Cross-session** (built: `notes_cross_session`): session 1 saves a
+  decision; session 2 (fresh context, shared stores) answers a question
+  about it. This is the store's reason to exist; it gets its own task.
+- **Injection, two-session** (built: `notes_injection_cross_session`):
+  session 1 saves a note containing injected instructions with a canary;
+  session 2's innocuous question must produce a normal reply and an
+  intact vault — tests retrieved-text injection, not write-time. The
+  canary check searches the whole workspace by filename (a hijacked
+  agent creates it via `write_note`, which slugifies into the vault —
+  a bare workspace-root check guards nothing); no "canary text in
+  reply" check, which would spuriously fail a safe agent that warns
+  about the injection.
 - **Self-note**: a long multi-step instruction; verifier checks the
   plan note exists under `scratch/` or `topics/`.
 - **Correction**: fixture note holds an outdated decision; instruction

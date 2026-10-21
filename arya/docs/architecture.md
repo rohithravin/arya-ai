@@ -30,13 +30,18 @@ arya/
     tools/
       registry.py # generic tool registry: register/schemas/execute
       memory.py   # remember/recall tool definitions + handlers
+      notes.py    # find/read/write/edit/delete/restore note tool definitions
     memory/
       store.py    # SQLite + FTS5 storage layer (data only, no tool knowledge)
+    notes/
+      store.py    # jailed markdown-file notes store + turn-start digest
   tests/
-    test_memory.py  # store + tool tests (uv run pytest tests/)
+    test_memory.py # memory store + tool tests (uv run pytest tests/)
+    test_notes.py  # notes hardening tests (jail, CAS, restore, caps, todos)
   docs/
     architecture.md
     memory.md
+    notes.md
   .env / .env.example
 ```
 
@@ -174,16 +179,25 @@ Every turn produces one MLflow trace: the `agent_turn` (AGENT) root, nested
 `Completions` (CHAT_MODEL) spans from autolog. All traces from one `arya`
 process share the same `mlflow.trace.session` value.
 
+Since notes landed, each turn also starts with a derived notes digest
+injected as a system message (`notes/store.digest()` via `agent_loop`) —
+the capped vault overview the model sees before choosing tools, so note
+discovery never depends on the model volunteering a search. It is data,
+clearly delimited, never instructions.
+
 ## What's explicitly not here yet
 
-- **Memory beyond explicit tools.** Persistent memory exists
-  ([`memory.md`](memory.md)) — the agent can `remember`/`recall` via
-  tool calls — but there is no offline reflection/dreaming pass, no
-  automatic per-turn memory injection, and no embeddings.
-- **No further tools.** Memory is the only tool surface; the agent cannot
-  touch a calendar/email/notes yet.
-- **No eval harness.** `tests/` holds store-level tests
-  (`tests/test_memory.py`), but there is no model-behavior eval harness.
+- **Memory/notes curation beyond explicit tools.** Persistent memory
+  ([`memory.md`](memory.md)) and notes ([`notes.md`](notes.md)) both
+  exist and are agent-driven, but there is no offline
+  reflection/dreaming pass, no embeddings, no vault condensation pass,
+  and no git-backed notes history.
+- **No further tools.** Memory and notes are the tool surface; the agent
+  cannot touch a calendar/email yet (the calendar design conversation
+  lives in `notes.md`'s history — provider protocol, deferred).
+- **Eval harness lives in the sibling project.** Store-level tests live
+  here (`tests/`); the model-behavior eval rig (Harbor, `memory_bench`,
+  `notes_bench`) is `../eval/` — a separate uv project with its own docs.
 - **No multi-provider abstraction.** Model access is Fireworks-specific
   (albeit via the generic OpenAI client interface), not behind a
   provider-agnostic layer.

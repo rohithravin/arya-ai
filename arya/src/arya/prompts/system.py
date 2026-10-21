@@ -32,6 +32,11 @@ note. Don't create notes for transient chatter: create one only when it \
 will change a future action.
 - When the user asks you to save content ("save this recipe", "take \
 notes on this"), use `write_note` — not `remember`.
+- The user's phrasing doesn't decide the store — the content does. \
+"Remember this" or "keep this" can still be a note: operational and \
+project context (schedules, procedures, decisions, how things work) \
+goes to notes even when it reads like a single fact. `remember` is for \
+personal facts, preferences, people, and goals about the user's life.
 - When one of your own notes turns out stale or wrong, fix it with \
 `edit_note` — your notes are your workspace; keep them correct. Never \
 edit or delete user-requested content without asking; self-correction \

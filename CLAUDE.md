@@ -23,7 +23,7 @@ uv run mlflow ui --backend-store-uri sqlite:///<repo>/mlflow.db   # traces at :5
 
 - `arya memories list|show|delete|edit` — local memory-store inspection commands; no API key or MLflow needed.
 - All settings come from env vars via `config.py` (`.env` loaded with `override=True`, so the file wins over the shell). Missing `FIREWORKS_API_KEY` raises at import time, intentionally.
-- Architecture: `agent.py` (conversation state + one-step primitives) → `agent_loop.py` (`run_turn`) → `main.py` (REPL / memories CLI). Tools are registered in `tools/registry.py` (`memory.py` defines `remember`/`recall`); `memory/store.py` is pure storage with no tool knowledge. System prompt lives in `prompts/system.py`, separate from agent code.
+- Architecture: `agent.py` (conversation state + one-step primitives) → `agent_loop.py` (`run_turn`, plus the turn-start notes digest injection) → `main.py` (REPL / memories CLI). Tools are registered in `tools/registry.py` (`memory.py` defines `remember`/`recall`; `notes.py` defines the six notes tools over `notes/store.py`); `memory/store.py` and `notes/store.py` are pure storage with no tool knowledge. Routing rule: atomic facts → memory, structured documents → notes, regardless of the user's phrasing. System prompt lives in `prompts/system.py`, separate from agent code.
 - `memories.db` / `mlflow.db` at the repo and project roots are local state, not code.
 
 ## eval
