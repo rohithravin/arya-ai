@@ -29,6 +29,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from dotenv import dotenv_values
 from harbor.agents.base import BaseAgent
 from harbor.agents.capabilities import AgentCapabilities
 from harbor.environments.base import BaseEnvironment
@@ -50,6 +51,11 @@ DRIVER_SANDBOX_PATH = "/agent/driver.py"
 # sandbox at setup so trials measure the code being developed.
 ARYA_SRC_HOST_PATH = Path(__file__).parents[2] / "arya" / "src"
 ARYA_SRC_SANDBOX_PATH = "/opt/arya-src"
+
+# arya/.env is not uploaded (the sandbox's dotenv search finds nothing), so
+# the key is resolved on the host: .env first, as arya does locally, then the
+# shell.
+ARYA_ENV_HOST_PATH = ARYA_SRC_HOST_PATH.parent / ".env"
 
 MEMORY_DB = "/workdir/memories.db"
 REPLY_PATH = "/workdir/reply.txt"
@@ -97,7 +103,10 @@ class AryaAgent(BaseAgent):
             "PYTHONPATH": ARYA_SRC_SANDBOX_PATH,
             # The sandbox resolves the model API itself; the task's
             # environment must allow api.fireworks.ai.
-            "FIREWORKS_API_KEY": os.environ.get("FIREWORKS_API_KEY", ""),
+            "FIREWORKS_API_KEY": dotenv_values(ARYA_ENV_HOST_PATH).get(
+                "FIREWORKS_API_KEY"
+            )
+            or os.environ.get("FIREWORKS_API_KEY", ""),
         }
         result = await environment.exec(
             f"python {DRIVER_SANDBOX_PATH}",

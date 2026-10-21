@@ -17,8 +17,15 @@ commit re-pinning and no drift between what you run and what you evaluate.
 cd eval
 uv sync                         # arya (from ../arya) + harbor
 uv tool install harbor          # the harbor CLI (drives trials)
-export FIREWORKS_API_KEY=...    # passed into the sandbox by the adapter
 ```
+
+`FIREWORKS_API_KEY` is read on the host from `arya/.env` first, then the shell
+(`export FIREWORKS_API_KEY=...`) if `.env` has none. `.env` wins, matching
+arya's local `override=True` behavior. The adapter passes it into the sandbox
+for the agent (the file itself is not uploaded). `scripts/run_agent.py` and
+`scripts/verify_tasks.py` pass it to harbor, which substitutes it into each
+task's `${FIREWORKS_API_KEY}` for the verifier's LLM judges. A bare
+`harbor run` takes the verifier's key from the shell only.
 
 ## Run
 
@@ -39,6 +46,7 @@ The same driver the adapter uploads into the sandbox:
 ```bash
 ARYA_INSTRUCTION="Remember that my dentist appointment is Friday at 2pm." \
 ARYA_MEMORY_DB=/tmp/memories.db ARYA_REPLY_PATH=/tmp/reply.txt \
+ARYA_CONVERSATION_PATH=/tmp/conversation.json \
     uv run python agent/driver.py
 ```
 

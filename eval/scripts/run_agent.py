@@ -27,12 +27,25 @@ import subprocess
 import sys
 from pathlib import Path
 
+from dotenv import dotenv_values
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mlflow_import import begin_run as mlflow_begin_run, enabled as mlflow_enabled, log_trial
 
 ROOT = Path(__file__).resolve().parents[1]
 BENCHMARKS_DIR = ROOT / "benchmarks"
+ARYA_ENV = ROOT.parent / "arya" / ".env"
 AGENT = "arya_harbor:AryaAgent"
+
+
+def harbor_env() -> dict[str, str]:
+    """The environment for harbor: FIREWORKS_API_KEY from arya/.env first,
+    then the shell — the order arya uses locally. Harbor substitutes it into
+    each task's `${FIREWORKS_API_KEY}` (the verifier's LLM judges)."""
+    key = dotenv_values(ARYA_ENV).get("FIREWORKS_API_KEY") or os.environ.get(
+        "FIREWORKS_API_KEY", ""
+    )
+    return {**os.environ, "FIREWORKS_API_KEY": key}
 
 
 def harbor_command() -> list[str]:
@@ -70,7 +83,7 @@ def select_tasks(args: list[str]) -> list[Path]:
 
 def run_task(task: Path, attempts: int) -> tuple[str, list[Path]]:
     """Run the agent on one task; returns (job_dir, trial result paths)."""
-    env = {**os.environ, "PYTHONPATH": str(ROOT / "agent")}
+    env = {**harbor_env(), "PYTHONPATH": str(ROOT / "agent")}
     proc = subprocess.run(
         harbor_command()
         + ["run", "-p", str(task.relative_to(ROOT)), "-a", AGENT, "-k", str(attempts)],

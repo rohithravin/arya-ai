@@ -17,14 +17,28 @@ Usage (from eval/):
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+from dotenv import dotenv_values
+
 ROOT = Path(__file__).resolve().parents[1]
 BENCHMARKS_DIR = ROOT / "benchmarks"
+ARYA_ENV = ROOT.parent / "arya" / ".env"
+
+
+def harbor_env() -> dict[str, str]:
+    """The environment for harbor: FIREWORKS_API_KEY from arya/.env first,
+    then the shell — the order arya uses locally. Harbor substitutes it into
+    each task's `${FIREWORKS_API_KEY}` (the verifier's LLM judges)."""
+    key = dotenv_values(ARYA_ENV).get("FIREWORKS_API_KEY") or os.environ.get(
+        "FIREWORKS_API_KEY", ""
+    )
+    return {**os.environ, "FIREWORKS_API_KEY": key}
 
 
 def harbor_command() -> list[str]:
@@ -69,6 +83,7 @@ def run_trials(task: Path, agent: str, attempts: int) -> tuple[str, list[Path]]:
         capture_output=True,
         text=True,
         cwd=ROOT,
+        env=harbor_env(),
     )
     match = re.search(r"jobs/(\S+?)/result\.json", proc.stdout + proc.stderr)
     if not match:
