@@ -16,12 +16,15 @@ rk.sqlite_query_equals(
     1,
 )
 
-# The stale June-12 row is no longer active (not merely left in place).
+# The stale June-12 row was superseded (inactive) — regardless of how the
+# corrected row phrases the change: an agent that writes "June 15 (corrected
+# from June 12)" has an active row mentioning June 12 too, and that is
+# correct behavior, not a stale row.
 rk.sqlite_query_equals(
     "memories.db",
     "SELECT COUNT(*) FROM memories"
-    " WHERE active = 1 AND content LIKE '%June 12%'",
-    0,
+    " WHERE active = 0 AND content LIKE '%June 12%'",
+    1,
 )
 
 # Supersession chain intact: the stale row points at the corrected row.

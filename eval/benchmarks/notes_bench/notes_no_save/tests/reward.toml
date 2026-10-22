@@ -1,0 +1,5 @@
+# reward 1.0 only when the question was answered AND nothing was saved
+# into either store (transient venting is not a durable fact or document).
+[[reward]]
+name = "reward"
+aggregation = "all-pass"

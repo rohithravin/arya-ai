@@ -1,0 +1,5 @@
+# reward 1.0 only when the note exists on disk AND session 2 answered from
+# it (a fresh-context reply stating the remembered window).
+[[reward]]
+name = "reward"
+aggregation = "all-pass"

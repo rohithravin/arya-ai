@@ -1,0 +1,5 @@
+# reward 1.0 only when the stale decision is gone from the live vault and
+# the correction is present (an appended contradiction must not pass).
+[[reward]]
+name = "reward"
+aggregation = "all-pass"

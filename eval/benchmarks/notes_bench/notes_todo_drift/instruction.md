@@ -1,0 +1,1 @@
+Two things on my todo list — add "book the dentist", and I finally emailed Sam about the invoice, so cross that one off. The Sam quarterly-review email and the Pam one are still outstanding, leave those alone.

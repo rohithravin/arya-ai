@@ -20,12 +20,18 @@ Conventions the adapter imposes on tasks (see README.md):
 - the arya source is uploaded to /opt/arya-src (imported via PYTHONPATH)
 - the driver is uploaded to /agent/driver.py
 - the memory DB lives at /workdir/memories.db (ARYA_MEMORY_DB)
+- the notes vault lives at /workdir/notes (ARYA_NOTES_DIR)
 - the agent's final reply is written to /workdir/reply.txt
 - the raw transcript is written to /workdir/conversation.json
+- every session's {instruction, reply} is written to /workdir/sessions.json
+  (multi-session tasks separate instructions in instruction.md with the
+  session-break marker below; each session runs a fresh Agent sharing the
+  trial's stores)
 """
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -58,8 +64,35 @@ ARYA_SRC_SANDBOX_PATH = "/opt/arya-src"
 ARYA_ENV_HOST_PATH = ARYA_SRC_HOST_PATH.parent / ".env"
 
 MEMORY_DB = "/workdir/memories.db"
+NOTES_DIR = "/workdir/notes"
 REPLY_PATH = "/workdir/reply.txt"
 CONVERSATION_PATH = "/workdir/conversation.json"
+SESSIONS_PATH = "/workdir/sessions.json"
+
+# Multi-session tasks separate their per-session instructions in
+# instruction.md with this marker line; the adapter splits on it and the
+# driver runs each session against a fresh Agent (fresh context) sharing
+# the trial's stores. Single-session instructions have no marker and run
+# exactly as before. The marker must be a whole line of its own: a
+# mid-line occurrence is a mistake, not a session break.
+SESSION_MARKER = "--- SESSION BREAK ---"
+SESSION_MARKER_RE = re.compile(r"(?m)^--- SESSION BREAK ---[ \t]*\r?$")
+
+
+def split_sessions(instruction: str) -> list[str]:
+    """Split an instruction into per-session instructions on the marker line.
+
+    Raises ValueError on malformed shapes (empty segments, a stray
+    mid-line marker) — a task author's typo must fail loudly, not
+    silently renumber sessions.
+    """
+    sessions = SESSION_MARKER_RE.split(instruction)
+    if not sessions or any(not s.strip() for s in sessions):
+        raise ValueError("empty session (missing or doubled session-break marker)")
+    for s in sessions:
+        if SESSION_MARKER in s:
+            raise ValueError("mid-line session-break marker inside a session")
+    return [s.strip() for s in sessions]
 
 
 class AryaAgent(BaseAgent):
@@ -95,11 +128,17 @@ class AryaAgent(BaseAgent):
         environment: BaseEnvironment,
         context: AgentContext,
     ) -> None:
+        instructions = split_sessions(instruction)
         env = {
-            "ARYA_INSTRUCTION": instruction,
+            # Multi-session: JSON array, one fresh-Agent session each. The
+            # single-instruction form also sets ARYA_INSTRUCTION for
+            # backwards compatibility with direct-drive runs.
+            "ARYA_INSTRUCTIONS": json.dumps(instructions),
             "ARYA_MEMORY_DB": MEMORY_DB,
+            "ARYA_NOTES_DIR": NOTES_DIR,
             "ARYA_REPLY_PATH": REPLY_PATH,
             "ARYA_CONVERSATION_PATH": CONVERSATION_PATH,
+            "ARYA_SESSIONS_PATH": SESSIONS_PATH,
             "PYTHONPATH": ARYA_SRC_SANDBOX_PATH,
             # The sandbox resolves the model API itself; the task's
             # environment must allow api.fireworks.ai.
@@ -112,27 +151,43 @@ class AryaAgent(BaseAgent):
             f"python {DRIVER_SANDBOX_PATH}",
             env=env,
             cwd="/workdir",
-            timeout_sec=300,
+            # Generous: a multi-session trial runs several full turns, and
+            # a timeout would discard every session's artifacts (they are
+            # written only after the last session completes).
+            timeout_sec=600,
         )
         if result.return_code != 0:
             raise RuntimeError(
                 f"driver failed ({result.return_code}): "
-                f"{(result.stderr or result.stdout or '')[-2000:]}"
+                f"{(result.stdout or '')[-2000:]}"
             )
         # The driver's stdout carries MLflow logging; the clean reply and
-        # the transcript are the files the driver wrote.
-        reply = (await environment.exec(f"cat {REPLY_PATH}", timeout_sec=30)).stdout or ""
-        transcript = json.loads(
-            (await environment.exec(f"cat {CONVERSATION_PATH}", timeout_sec=30)).stdout
-            or "{}"
-        )
+        # the transcript are the files the driver wrote. Harbor merges
+        # stderr into stdout, so result.stdout is the full driver output.
+        # Missing artifacts are an error, not an empty default — a silent
+        # fallback would make a failed trial look like an empty one.
+        async def _cat(path: str) -> str:
+            cat = await environment.exec(f"cat {path}", timeout_sec=30)
+            if cat.return_code != 0:
+                raise RuntimeError(f"driver wrote no {path}")
+            return cat.stdout or ""
+
+        reply = await _cat(REPLY_PATH)
+        transcript = json.loads(await _cat(CONVERSATION_PATH))
+        sessions = json.loads(await _cat(SESSIONS_PATH))
         messages = transcript.get("messages", [])
-        usage = transcript.get("usage", [])
+        # Token usage summed across ALL sessions (conversation.json carries
+        # only the final one; sessions.json carries every session's).
+        usage = [u for s in sessions for u in s.get("usage", []) if u]
         model_name = transcript.get("model")
         context.metadata = {
             "reply": reply.strip(),
             "n_messages": len(messages),
-            "driver_stderr": (result.stderr or "").strip()[-2000:],
+            "sessions": [
+                {"instruction": s["instruction"][:200], "reply": s["reply"][:500]}
+                for s in sessions
+            ],
+            "driver_output": (result.stdout or "").strip()[-2000:],
         }
         self._write_trajectory(messages, usage, model_name)
         usage = [u for u in usage if u]  # drop empty entries (no usage chunk)

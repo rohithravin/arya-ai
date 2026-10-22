@@ -1,8 +1,9 @@
 # Arya evals (Harbor)
 
-Runs the Arya agent — the exact code you use daily, toolset unchanged
-(`remember`/`recall` only) — against [Harbor](https://github.com/harbor-framework/harbor)
-tasks that score memory behavior deterministically.
+Runs the Arya agent — the exact code you use daily, full toolset
+(`remember`/`recall` + the six notes tools) — against
+[Harbor](https://github.com/harbor-framework/harbor) tasks that score memory
+and notes behavior deterministically.
 
 This is its own uv project: it imports `arya` as a (path-pinned) dependency,
 plus `harbor`. Trials measure **the exact local code**: the adapter uploads
@@ -45,10 +46,14 @@ The same driver the adapter uploads into the sandbox:
 
 ```bash
 ARYA_INSTRUCTION="Remember that my dentist appointment is Friday at 2pm." \
-ARYA_MEMORY_DB=/tmp/memories.db ARYA_REPLY_PATH=/tmp/reply.txt \
-ARYA_CONVERSATION_PATH=/tmp/conversation.json \
+ARYA_MEMORY_DB=/tmp/memories.db ARYA_NOTES_DIR=/tmp/notes \
+ARYA_REPLY_PATH=/tmp/reply.txt ARYA_CONVERSATION_PATH=/tmp/conversation.json \
     uv run python agent/driver.py
 ```
+
+(`ARYA_SESSIONS_PATH` defaults to `sessions.json` next to the reply file;
+`ARYA_INSTRUCTIONS`, a JSON array, runs several sessions — each against a
+fresh agent, sharing the stores.)
 
 ## How it works
 
@@ -56,24 +61,32 @@ ARYA_CONVERSATION_PATH=/tmp/conversation.json \
   on the host; the adapter drives the sandbox via `environment.exec`, so
   Arya itself runs **inside the trial container** via `agent/driver.py` —
   the memory store is isolated per trial and inspectable by the verifier.
-- `agent/driver.py` — runs inside the sandbox: one `run_turn` on the task
-  instruction; writes the reply to `/workdir/reply.txt`.
+- `agent/driver.py` — runs inside the sandbox: one or more `run_turn`s on
+  the task instruction(s); writes the final reply to `/workdir/reply.txt`.
 - `benchmarks/<bench>/<name>/` — Harbor task directories, grouped into
   benchmarks (e.g. `benchmarks/memory_bench/memory_save/`):
-  - `instruction.md` — the conversational input
+  - `instruction.md` — the conversational input. Multi-session tasks
+    separate per-session instructions with a `--- SESSION BREAK ---` line
+    of its own (each session runs a fresh agent sharing the trial's
+    stores — see the benchmark READMEs)
   - `environment/Dockerfile` — installs the arya package at a pinned commit
-  - `tests/test.sh` — verifier; queries `/workdir/memories.db` and writes
-    the numeric reward to `/logs/verifier/reward.txt`
+  - `tests/test.sh` — verifier; queries `/workdir/memories.db`,
+    `/workdir/notes/`, and the reply artifacts, and writes the numeric
+    reward to `/logs/verifier/reward.txt`
   - `solution/solve.sh` — reference solution (writes the memory row directly)
 
 ## Adapter conventions
 
-| Path (in sandbox)      | Meaning                              |
-|------------------------|--------------------------------------|
-| `/opt/arya-src`        | the uploaded arya source (PYTHONPATH) |
-| `/agent/driver.py`     | the uploaded driver script           |
-| `/workdir/memories.db` | the trial's memory store              |
-| `/workdir/reply.txt`   | the agent's final reply text          |
+| Path (in sandbox)        | Meaning                                   |
+|-------------------------|-------------------------------------------|
+| `/opt/arya-src`         | the uploaded arya source (PYTHONPATH)      |
+| `/agent/driver.py`      | the uploaded driver script                 |
+| `/workdir/memories.db`  | the trial's memory store                   |
+| `/workdir/notes/`       | the trial's notes vault                    |
+| `/workdir/reply.txt`    | the agent's final reply text               |
+| `/workdir/conversation.json` | the final session's transcript        |
+| `/workdir/sessions.json`| every session's instruction/reply/transcript |
+| `/workdir/replies/session-<n>.txt` | per-session replies (verifier-friendly) |
 
 ## Benchmarks and tasks
 
@@ -85,6 +98,11 @@ listing its tasks:
   right facts get saved (atomically, in the right category), recalled
   (the right row, respecting supersession), corrected (via supersession),
   and withheld (transient chatter not saved, unknown facts admitted).
+- [`benchmarks/notes_bench/`](benchmarks/notes_bench/) — whether notes
+  persist across sessions (fresh context, shared stores), whether the
+  agent routes documents to notes instead of memory, and whether content
+  saved in notes is reported back without being followed (prompt
+  injection through the notes store).
 
 Testing a task without the agent (uses the reference solution):
 
